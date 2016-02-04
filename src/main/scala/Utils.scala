@@ -10,7 +10,7 @@ object Utils {
   }
 
   // TODO: remove links
-  case class Tokenizer(regex: String = "[^a-z0-9]+") {
+  case class Tokenizer(regex: String = "[^a-z]+") {
     val stopWords = readFromResource("/StopWords").toSet
 
     def apply(str: String): Array[String] = {
