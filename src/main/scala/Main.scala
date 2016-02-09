@@ -25,12 +25,6 @@ object Main {
 
     val twitterIndex = new Index()
 
-    def getResult (q :Query) :Seq[String] = {
-      q.tokens.map( (token :String) => {
-        twitterIndex.invertedIndex.get(token)
-      }).flatten
-    }
-
-//    twitterIndex.documentFrequency.toSeq.sortWith(sortDf).take(50).foreach(println)
+    println(twitterIndex.invertedIndex.size)
   }
 }

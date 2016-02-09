@@ -7,7 +7,7 @@ class Index {
   var tweets = Map[String, String]() // tweetID -> actual tweet
   var invertedIndex = Map[String, Map[String, Int]]() // token -> (tweetID -> tf)
   var tokenDF = Map[String, Int]() // token -> documentFrequency
-  var documentLengths = Map[String, Int]() // tweetID -> document length
+  var documentLengths = Map[String, Double]() // tweetID -> document length
 
   val tokenizr = Tokenizer()
 
@@ -28,22 +28,23 @@ class Index {
       )
   }
 
-  def getDocumentLengths: Map[String, Int] = {
+  def getDocumentLengths: Map[String, Double] = {
+    documentLengths = Map[String, Double]()
     tweets.keys.map( (tid: String) => {
-      tid -> getDocumentLength(tid)
+      documentLengths += (tid -> getDocumentLength(tid))
     })
+    documentLengths
   }
 
-  def getDocumentLength (tid: String) :Int = {
-    var sum = tokenizr(tweets.get(tid))
-        .foldLeft(0)(
-          (sum: Int, token: String) => {
-            Math.pow(invertedIndex.get(token).get(tid) *
-              tokenDF.get(token), 2)
-          })
+  def getDocumentLength (tid: String) :Double = {
+    var sum :Double = tokenizr(tweets.getOrElse(tid, ""))
+      .foldLeft(0.0)(
+        (sum: Double, token: String) => {
+          Math.pow(2, 2)
+        })
     sum = Math.sqrt(sum)
     documentLengths += tid -> sum
-    }
+    sum
   }
 
   def addToInvertedIndex(id: String, content: String): Unit = {
