@@ -7,12 +7,10 @@ object Index {
   var tweets = Map[String, String]() // tweetID -> actual tweet
   var invertedIndex = Map[String, Map[String, Int]]() // token -> (tweetID -> tf)
   var tokenDF = Map[String, Int]() // token -> documentFrequency
-  var documentLengths = Map[String, Double]() // tweetID -> document length
 
   val tokenizr = Tokenizer()
 
   tweets = getTweets
-  getDocumentLengths
 
   def getTweets: Map[String, String] = {
     readFromResource("/Trec_microblog11.txt")
@@ -28,30 +26,6 @@ object Index {
       )
   }
 
-  def getDocumentLengths: Map[String, Double] = {
-    documentLengths = Map[String, Double]()
-    tweets.keys.foreach((tid: String) => {
-      documentLengths += (tid -> getDocumentLength(tid))
-    })
-    documentLengths
-  }
-
-  def getDocumentLength (tid: String) :Double = {
-    math.sqrt(tokenizr(tweets.getOrElse(tid, ""))
-        .map( token => {
-          math.pow(getTokenWeight(token, tid) , 2)
-        })
-        .sum
-    )
-  }
-
-  def getTokenWeight (token :String, tid :String) :Double = {
-    val df :Double = tokenDF.getOrElse(token, 0).toDouble
-    val idf :Double = log2(invertedIndex.size.toDouble / df)
-    val tf :Int = invertedIndex.getOrElse(token, Map(tid -> 0))
-                    .getOrElse(tid, 0)
-    idf * tf
-  }
 
   def addToInvertedIndex(id: String, content: String): Unit = {
     tokenizr(content).foreach(f = (token: String) => {
