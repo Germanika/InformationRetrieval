@@ -1,8 +1,9 @@
 
-import utils.Utils.Tokenizer
+import twit.Utils.Tokenizer
+import twit.Index
+
 
 import scala.xml.{XML, Node}
-import utils.Index
 
 object Main {
 
@@ -11,6 +12,7 @@ object Main {
 
     val tokenizr = Tokenizer()
     val queryResource = getClass.getResource("/queries.txt").getFile
+    println(queryResource)
 
     val parseNode :(Node) => Query = (node) => {
       val num :String = (node \ "num").text.substring(9, 14)
@@ -23,8 +25,8 @@ object Main {
         .map(parseNode)
         .toList
 
-    val twitterIndex = new Index()
-
-    println(twitterIndex.invertedIndex.size)
+    println(Index.invertedIndex.size)
+    println(Index.documentLengths.size)
+    Index.documentLengths.foreach(println)
   }
 }

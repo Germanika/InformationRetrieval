@@ -1,8 +1,9 @@
-package utils
+package twit
 
-import utils.Utils.{ Tokenizer, readFromResource }
+import twit.Utils.{readFromResource, Tokenizer}
 
-class Index {
+
+object Index {
 
   var tweets = Map[String, String]() // tweetID -> actual tweet
   var invertedIndex = Map[String, Map[String, Int]]() // token -> (tweetID -> tf)
@@ -37,14 +38,19 @@ class Index {
   }
 
   def getDocumentLength (tid: String) :Double = {
-    var sum :Double = tokenizr(tweets.getOrElse(tid, ""))
-      .foldLeft(0.0)(
-        (sum: Double, token: String) => {
-          Math.pow(2, 2)
+    math.sqrt(tokenizr(tweets.getOrElse(tid, ""))
+        .map( token => {
+          math.pow(getTokenWeight(token, tid) , 2)
         })
-    sum = Math.sqrt(sum)
-    documentLengths += tid -> sum
-    sum
+        .sum
+    )
+  }
+
+  def getTokenWeight (token :String, tid :String) :Double = {
+    val idf :Int = tokenDF.getOrElse(token, 0)
+    val tf :Int = invertedIndex.getOrElse(token, Map(tid -> 0))
+                    .getOrElse(tid, 0)
+    idf * tf
   }
 
   def addToInvertedIndex(id: String, content: String): Unit = {
