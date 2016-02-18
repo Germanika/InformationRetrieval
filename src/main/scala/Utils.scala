@@ -8,6 +8,10 @@ object Utils {
 //    Source.fromInputStream(jStream).getLines()
   }
 
+  def log2 (x :Double) :Double = {
+    math.log(x) / math.log(2)
+  }
+
   // TODO: remove links
   case class Tokenizer(regex: String = "[^a-z]+") {
     val stopWords = readFromResource("/StopWords.txt").toSet

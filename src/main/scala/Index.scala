@@ -1,7 +1,6 @@
 package twit
 
-import twit.Utils.{readFromResource, Tokenizer}
-
+import twit.Utils.{readFromResource, Tokenizer, log2}
 
 object Index {
 
@@ -31,7 +30,7 @@ object Index {
 
   def getDocumentLengths: Map[String, Double] = {
     documentLengths = Map[String, Double]()
-    tweets.keys.map( (tid: String) => {
+    tweets.keys.foreach((tid: String) => {
       documentLengths += (tid -> getDocumentLength(tid))
     })
     documentLengths
@@ -47,7 +46,8 @@ object Index {
   }
 
   def getTokenWeight (token :String, tid :String) :Double = {
-    val idf :Int = tokenDF.getOrElse(token, 0)
+    val df :Double = tokenDF.getOrElse(token, 0).toDouble
+    val idf :Double = log2(invertedIndex.size.toDouble / df)
     val tf :Int = invertedIndex.getOrElse(token, Map(tid -> 0))
                     .getOrElse(tid, 0)
     idf * tf
@@ -68,7 +68,7 @@ object Index {
         }
 
         // increment tf
-        var tf: Int = tweets.getOrElse(id, 0) + 1
+        val tf: Int = tweets.getOrElse(id, 0) + 1
         tweets += (id -> tf)
 
         invertedIndex += token -> tweets
