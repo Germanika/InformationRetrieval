@@ -6,7 +6,6 @@ object Index {
 
   var tweets = Map[String, String]() // tweetID -> actual tweet
   var invertedIndex = Map[String, Map[String, Int]]() // token -> (tweetID -> tf)
-  var tokenDF = Map[String, Int]() // token -> documentFrequency
 
   val tokenizr = Tokenizer()
 
@@ -37,10 +36,6 @@ object Index {
       if (invertedIndex.contains(token)) {
         var tweets: Map[String, Int] = invertedIndex.getOrElse(token, Map[String, Int]())
 
-        if (tweets.contains(id)) {
-          tokenDF += (token -> (tokenDF.getOrElse(token, 0) + 1))
-        }
-
         // increment tf
         val tf: Int = tweets.getOrElse(id, 0) + 1
         tweets += (id -> tf)
@@ -50,7 +45,6 @@ object Index {
 
         // if it's nowhere to be found, add new entry to index
         invertedIndex += (token -> Map(id -> 1))
-        tokenDF += (token -> 1)
       }
     })
   }

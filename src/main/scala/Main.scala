@@ -55,41 +55,7 @@ object Main {
       result
     }
 
-    def getDocumentLengths: Map[String, Double] = {
-      documentLengths = Map[String, Double]()
-      Index.tweets.keys.foreach((tid: String) => {
-        documentLengths += (tid -> getDocumentLength(tid))
-      })
-      documentLengths
-    }
-
-    def getDocumentLength (tid: String) :Double = {
-      math.sqrt(tokenizr(Index.tweets.getOrElse(tid, ""))
-        .map( token => {
-          math.pow(getTokenWeight(token, tid) , 2)
-        })
-        .sum
-      )
-    }
-
-    def getTokenWeight (token :String, tid :String) :Double = {
-      val idf :Double = tokenIdf(token)
-      val tf :Int = Index.invertedIndex.getOrElse(token, Map(tid -> 0))
-        .getOrElse(tid, 0)
-      idf * tf.toDouble
-    }
-
-    def getQueryLength (query :Query) :Double = {
-      math.sqrt(
-        query.tokens.map( token => {
-          math.pow(tokenIdf(token), 2)
-        })
-        .sum
-      )
-    }
-
     def retrieve (query :Query, queryNum :Int, numResults :Int) :Seq[(Int, String, Double)] = {
-//      val scores = mutable.HashMap[String, Double]()
       val tokens = query.tokens.filter( (t :String) => Index.invertedIndex.contains(t))
       val tokenFrequencyInQuery = tokens.foldRight(mutable.Map[String, Int]())( (token :String, frequencies :mutable.Map[String, Int]) => {
         frequencies += token -> (frequencies.getOrElse(token, 0) + 1)
@@ -105,23 +71,24 @@ object Main {
       val uniqueTokens = tokens.toSet
 
       val queryTokenIdfs :mutable.Map[String, Double] =
-        uniqueTokens.foldRight(mutable.Map[String, Double]())(
+        uniqueTokens.toList.foldRight(mutable.Map[String, Double]())(
           (token :String, idfs :mutable.Map[String, Double]) => {
             idfs += token -> tokenIdf(token)
           }
         )
 
+      // token -> idf_q
       val queryTfIdfs :mutable.Map[String, Double] =
-        uniqueTokens.foldRight(mutable.Map[String, Double]())(
+        uniqueTokens.toList.foldRight(mutable.Map[String, Double]())(
           (token :String, tfIdfs :mutable.Map[String, Double]) => {
-            tfIdfs += token -> (queryTokenIdfs(token) * tokenFrequencyInQuery(token) / maxTokenFrequencyInQuery)
+            tfIdfs += token -> (queryTokenIdfs(token))
           }
         )
 
 
       // tweetId -> [ (tfidf, token), (tfidf, token), ... ]
       val tweetTfIdfs :mutable.Map[String, List[(Double, String)]] =
-        uniqueTokens.foldRight(mutable.Map[String, List[(Double, String)]]())(
+        uniqueTokens.toList.foldRight(mutable.Map[String, List[(Double, String)]]())(
           (token :String, tfIdfs :mutable.Map[String, List[(Double, String)]]) => {
             tweetsByToken(token).foreach(
               (item :(Double, String)) => {
@@ -135,7 +102,7 @@ object Main {
 
       // tid -> tweetLength
       val tweetLengths :mutable.Map[String, Double] =
-        tweetTfIdfs.keys.foldRight(
+        tweetTfIdfs.keys.toList.foldRight(
           mutable.Map[String, Double]())(
           (tid :String, lengths :mutable.Map[String, Double]) => {
             lengths += tid -> getLength(tweetTfIdfs(tid).map(_._1))
@@ -145,7 +112,7 @@ object Main {
 
       // tid -> score
       val similarityScores :mutable.Map[String, Double] =
-        tweetTfIdfs.keys.foldRight( mutable.Map[String, Double]() )(
+        tweetTfIdfs.keys.toList.foldRight( mutable.Map[String, Double]() )(
           (tid :String, scores :mutable.Map[String, Double]) => {
            scores += tid ->
              (tweetTfIdfs(tid).foldRight(0.0)(
@@ -159,7 +126,7 @@ object Main {
       }
 
       // sort by score, take top numResults results
-      similarityScores.map(toResult).toSeq.sortWith(_._3 > _._3).take(numResults)
+      similarityScores.toList.map(toResult).toSeq.sortWith(_._3 > _._3).take(numResults)
     }
 
     val fw = new FileWriter("Results", true)
