@@ -1,4 +1,6 @@
 
+import java.io.FileWriter
+
 import twit.Utils.Tokenizer
 import twit.Utils.log2
 import twit.Index
@@ -18,7 +20,6 @@ object Main {
 
     val tokenizr = Tokenizer()
     val queryResource = getClass.getResource("/queries.txt").getFile
-    println(queryResource)
 
     // gets query info from an xml node
     val parseNode :(Node) => Query = (node) => {
@@ -41,16 +42,17 @@ object Main {
     }
 
     def getLength (values :List[Double]) :Double = {
-      math.sqrt(values.foldLeft(0.0)((accum :Double, x :Double) =>
+      math.sqrt(values.foldRight(0.0)((x :Double, accum :Double) =>
         accum + math.pow(x, 2)))
     }
 
     // list of tweets and their tf-idf values from a token
     def tweetsByToken (token :String) :List[Tuple2[Double, String]] = {
       val termIdf = tokenIdf(token)
-      Index.invertedIndex(token).map(item => {
+      val result = Index.invertedIndex(token).toList.map(item => {
         Tuple2(item._2 * termIdf, item._1)
-      }).toList
+      })
+      result
     }
 
     def getDocumentLengths: Map[String, Double] = {
@@ -86,15 +88,15 @@ object Main {
       )
     }
 
-    def retrieve (query :Query) :Seq[(String, Double)] = {
-      val scores = mutable.HashMap[String, Double]()
+    def retrieve (query :Query, queryNum :Int, numResults :Int) :Seq[(Int, String, Double)] = {
+//      val scores = mutable.HashMap[String, Double]()
       val tokens = query.tokens.filter( (t :String) => Index.invertedIndex.contains(t))
-      val tokenFrequencyInQuery = tokens.foldLeft(mutable.Map[String, Int]())( (frequencies :mutable.Map[String, Int], token :String) => {
+      val tokenFrequencyInQuery = tokens.foldRight(mutable.Map[String, Int]())( (token :String, frequencies :mutable.Map[String, Int]) => {
         frequencies += token -> (frequencies.getOrElse(token, 0) + 1)
       })
 
-      val maxTokenFrequencyInQuery :Int = tokenFrequencyInQuery.foldLeft(0)(
-        (max :Int, item :Tuple2[String, Int]) => {
+      val maxTokenFrequencyInQuery :Int = tokenFrequencyInQuery.foldRight(0)(
+        (item :(String, Int), max :Int) => {
           if (max > item._2) max
           else item._2
         }
@@ -103,51 +105,83 @@ object Main {
       val uniqueTokens = tokens.toSet
 
       val queryTokenIdfs :mutable.Map[String, Double] =
-        uniqueTokens.foldLeft(mutable.Map[String, Double]())(
-          (idfs :mutable.Map[String, Double], token :String) => {
+        uniqueTokens.foldRight(mutable.Map[String, Double]())(
+          (token :String, idfs :mutable.Map[String, Double]) => {
             idfs += token -> tokenIdf(token)
           }
         )
 
       val queryTfIdfs :mutable.Map[String, Double] =
-        uniqueTokens.foldLeft(mutable.Map[String, Double]())(
-          (tfIdfs :mutable.Map[String, Double], token :String) => {
+        uniqueTokens.foldRight(mutable.Map[String, Double]())(
+          (token :String, tfIdfs :mutable.Map[String, Double]) => {
             tfIdfs += token -> (queryTokenIdfs(token) * tokenFrequencyInQuery(token) / maxTokenFrequencyInQuery)
           }
         )
 
-      val queryLength: Double = getLength(queryTfIdfs.values.toList)
 
-      // TODO: monster block of nonsense
-      val tweetTfIdfs :mutable.Map[String, List[Tuple2[String, Double]]] =
-        uniqueTokens.foldLeft(mutable.Map[String, List[Tuple2[String, Double]]]())(
-          (tfIdfs :mutable.Map[String, Tuple2[String, Double]], token :String) => {
-            tweetsByToken(token).foreach((item :Tuple2[Double, String]) => {
-              if (tfIdfs.contains(item._2)) tfIdfs(item._2) += Tuple2(item._1, token)
-              else tfIdfs += item._2 -> List(Tuple2(item._1, token))
-            })
+      // tweetId -> [ (tfidf, token), (tfidf, token), ... ]
+      val tweetTfIdfs :mutable.Map[String, List[(Double, String)]] =
+        uniqueTokens.foldRight(mutable.Map[String, List[(Double, String)]]())(
+          (token :String, tfIdfs :mutable.Map[String, List[(Double, String)]]) => {
+            tweetsByToken(token).foreach(
+              (item :(Double, String)) => {
+                if (tfIdfs.contains(item._2)) Tuple2(item._1, token) :: tfIdfs(item._2)
+                else tfIdfs += item._2 -> List(Tuple2(item._1, token))
+              }
+            )
+            tfIdfs
           }
         )
 
-      for (t <- uniqueTokens) {
-        for (item <- tweetsByToken(t)) {
-          // incrementally compute cosine similarity
-          scores.put(item._2, scores.getOrElse(item._2, 0.0) + item._1 * queryTfIdfs(t))
-          // TODO: something is going wrong in the calculations
-        }
+      // tid -> tweetLength
+      val tweetLengths :mutable.Map[String, Double] =
+        tweetTfIdfs.keys.foldRight(
+          mutable.Map[String, Double]())(
+          (tid :String, lengths :mutable.Map[String, Double]) => {
+            lengths += tid -> getLength(tweetTfIdfs(tid).map(_._1))
+          })
+
+      val queryLength: Double = getLength(queryTfIdfs.values.toList)
+
+      // tid -> score
+      val similarityScores :mutable.Map[String, Double] =
+        tweetTfIdfs.keys.foldRight( mutable.Map[String, Double]() )(
+          (tid :String, scores :mutable.Map[String, Double]) => {
+           scores += tid ->
+             (tweetTfIdfs(tid).foldRight(0.0)(
+               (item :(Double, String), acc :Double) =>
+                 acc + item._1 * queryTfIdfs(item._2)
+               ) / (tweetLengths(tid) * queryLength))
+          })
+
+      def toResult(result :(String, Double)) :(Int, String, Double) = {
+        Tuple3(queryNum, result._1, result._2)
       }
 
-      // sort by score, and return top n results
-      scores.map(toResult(_, queryLength)).toSeq.sortWith(_._2 > _._2)
+      // sort by score, take top numResults results
+      similarityScores.map(toResult).toSeq.sortWith(_._3 > _._3).take(numResults)
     }
 
-    def toResult (item :(String, Double), qLength :Double) :Tuple2[String, Double] = {
-      new Tuple2[String, Double] (item._1, item._2 / (documentLengths(item._1) * qLength))
-    }
-
-    getDocumentLengths
-    queries.foreach(q => {
-      retrieve(q).take(2).foreach(println)
+    val fw = new FileWriter("Results", true)
+    var count = 0
+    queries.map(q => {
+      count += 1
+      retrieve(q, count, 1000)
+    }).map((results :Seq[(Int, String, Double)]) => {
+      var rank = 0
+      results.foreach(
+        (result :(Int, String,Double)) => {
+          rank += 1
+          fw.write(
+            result._1 +
+              " Q0 " +
+              result._2 + " " +
+              rank + " " +
+              result._3 + " IanGermann_6979433 \n"
+          )
+        }
+      )
     })
+    fw.close()
   }
 }

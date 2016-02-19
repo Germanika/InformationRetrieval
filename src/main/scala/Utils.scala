@@ -1,5 +1,6 @@
 package twit
 import scala.io.Source
+import java.io._
 
 object Utils {
   def readFromResource (name: String): Iterator[String] = {
